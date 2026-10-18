@@ -61,7 +61,6 @@ def check_asus_firmware_update(ip, username, password):
         buildno = nvram_get(session, base_url, "buildno")
         extendno = nvram_get(session, base_url, "extendno")
         current_version = f"{firmver}.{buildno}_{extendno}".strip("._")
-        current_build = f"{buildno}_{extendno.split('-')[0]}" if extendno else buildno
         print(f"Current version: {current_version}")
 
         # Step 2: Send a command to start the update check against ASUS servers
@@ -72,25 +71,25 @@ def check_asus_firmware_update(ip, username, password):
         }
         session.post(f"{base_url}/apply.cgi", data=check_data, timeout=10)
 
-        # Step 3: Poll for the result. webs_state_info holds the latest version
-        # string (the same value the web UI shows as "The latest version"),
-        # webs_state_update is "1" when an update is available
+        # Step 3: Poll for the result. webs_state_update turns "1" once the check
+        # has finished (it does not mean an update exists). webs_state_flag is
+        # "1" (or "2" for a forced update) when a newer firmware is available, and
+        # webs_state_info holds the latest version string the web UI shows
         print("Checking against ASUS servers...")
-        latest_version = ""
-        update_flag = ""
+        check_done = False
         error = ""
-        for _ in range(5):
+        for _ in range(12):
             time.sleep(5)
-            latest_version = nvram_get(session, base_url, "webs_state_info").strip()
-            update_flag = nvram_get(session, base_url, "webs_state_update").strip()
+            check_done = nvram_get(session, base_url, "webs_state_update").strip() == "1"
             error = nvram_get(session, base_url, "webs_state_error").strip()
-            if latest_version or update_flag == "1" or (error and error != "0"):
+            if check_done or (error and error != "0"):
                 break
+        latest_version = nvram_get(session, base_url, "webs_state_info").strip()
+        update_flag = nvram_get(session, base_url, "webs_state_flag").strip()
 
         # webs_state_info looks like "3006_102_40338-g47bdafb_1586-g1f414":
         # strip the leading firmware digits to get the build number ("102_40338"),
         # then rebuild the dotted display format the web UI uses
-        latest_build = ""
         latest_display = latest_version
         if latest_version:
             head, _, suffix = latest_version.partition("-")
@@ -101,7 +100,9 @@ def check_asus_firmware_update(ip, username, password):
         print()
         if error and error != "0":
             print(f"The router failed to reach the ASUS update servers (error code {error}).")
-        elif update_flag == "1" or (latest_build and current_build and latest_build != current_build):
+        elif not check_done:
+            print("Timed out waiting for the router to finish checking for updates.")
+        elif update_flag in ("1", "2"):
             print(f"A new firmware update is available: {latest_display}")
             print(f"Current version: {current_version}")
             # Here you can add code to send a notification (e.g., via a Telegram Bot or SMTP email)
