@@ -29,3 +29,4 @@ A new firmware update is available: 3.0.0.6.102_40338-g47bdafb_1586-g1f414
 ## Notes
 
 - Tested on RT-BE58U (firmware 3.0.0.6.x). The script has a marked spot where you can hook in notifications (Telegram bot, email, etc.).
+- After 2 failed logins the router requires a captcha. The script opens the captcha image and asks you to type it. It never guesses, because each wrong answer counts as a failed login and 10 failures lock the router's web UI until a factory reset.
