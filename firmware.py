@@ -2,6 +2,25 @@ import requests
 import base64
 import time
 import getpass
+import urllib3
+
+def create_session(ip):
+    # Try plain HTTP first, fall back to HTTPS if the router requires it
+    for scheme in ("http", "https"):
+        base_url = f"{scheme}://{ip}"
+        session = requests.Session()
+        session.headers.update({"Referer": f"{base_url}/Main_Login.asp"})
+        if scheme == "https":
+            # Router admin interfaces usually have a self-signed certificate
+            session.verify = False
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        try:
+            # The router refuses login.cgi unless the login page was requested first
+            session.get(f"{base_url}/Main_Login.asp", timeout=10)
+            return session, base_url
+        except requests.exceptions.RequestException:
+            session.close()
+    return None, None
 
 def nvram_get(session, base_url, key):
     # This firmware only returns the first key when multiple hooks are passed
@@ -10,11 +29,10 @@ def nvram_get(session, base_url, key):
     return resp.json().get(key, "")
 
 def check_asus_firmware_update(ip, username, password):
-    session = requests.Session()
-
-    # ASUS routers usually use plain HTTP on the internal network
-    # If you configured HTTPS for the admin interface, change to https://
-    base_url = f"http://{ip}"
+    session, base_url = create_session(ip)
+    if not session:
+        print(f"Could not connect to the router at {ip} (tried both HTTP and HTTPS).")
+        return
 
     # Encode the username and password in Base64 as required by the ASUS API
     auth_string = f"{username}:{password}"
@@ -30,11 +48,7 @@ def check_asus_firmware_update(ip, username, password):
     }
 
     try:
-        # Step 1: Log in to the router and save the cookies.
-        # The router refuses login.cgi unless the login page was requested
-        # first with a matching Referer; on success it sets an asus_token cookie
-        session.headers.update({"Referer": f"{base_url}/Main_Login.asp"})
-        session.get(f"{base_url}/Main_Login.asp", timeout=10)
+        # Step 1: Log in to the router; on success it sets an asus_token cookie
         login_response = session.post(f"{base_url}/login.cgi", data=login_data, timeout=10)
         login_response.raise_for_status()
 

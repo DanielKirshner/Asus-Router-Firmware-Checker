@@ -28,5 +28,4 @@ A new firmware update is available: 3.0.0.6.102_40338-g47bdafb_1586-g1f414
 
 ## Notes
 
-- Assumes plain HTTP on the internal network. If you enabled HTTPS for the admin interface, change `http://` to `https://` in the script.
 - Tested on RT-BE58U (firmware 3.0.0.6.x). The script has a marked spot where you can hook in notifications (Telegram bot, email, etc.).
